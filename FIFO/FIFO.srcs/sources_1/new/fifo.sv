@@ -1,25 +1,26 @@
 `timescale 1ns / 1ps
 
 module fifo (
-    input clk,
-    input rst,
-    input push,
-    input pop,
-    input [7:0] wdata,
+    input        clk,
+    input        rst,
+    input        push,
+    input        pop,
+    input  [7:0] wdata,
     output [7:0] rdata,
-    output full,
-    output empty
+    output       full,
+    output       empty
 );
 
     logic [3:0] w_rptr, w_wptr;
 
 
-    sram U_REGISTER (
-        .clk  (clk),
-        .addr (w_wptr),
-        .wdata(w_rptr),
-        .we   (push & (~full)),
-        .rdata(rdata)
+    register_file U_REGISTER (
+        .clk   (clk),
+        .r_addr(w_rptr),
+        .w_addr(w_wptr),
+        .wdata (wdata),
+        .we    (push & (~full | pop)),
+        .rdata (rdata)
     );
 
     control_unit U_CONTROL (
@@ -115,22 +116,23 @@ module control_unit (
 endmodule
 
 
-module sram (
+module register_file (
     input              clk,
-    input  logic [3:0] addr,
+    input  logic [3:0] w_addr,
+    input  logic [3:0] r_addr,
     input  logic [7:0] wdata,
     input  logic       we,
     output logic [7:0] rdata
 );
 
-    logic [7:0] ram[0:15];
+    logic [7:0] register_file[0:15];
 
     always_ff @(posedge clk) begin
         if (we) begin
-            ram[addr] <= wdata;
+            register_file[w_addr] <= wdata;
         end
     end
 
-    assign rdata = ram[addr];
+    assign rdata = register_file[r_addr];
 
 endmodule
