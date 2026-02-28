@@ -59,8 +59,10 @@ module stopwatch_datapath (
     output [6:0] hour
 );
     wire w_tick_100hz, w_sec_tick, w_min_tick, w_hour_tick;
-
+    
     reg run_en;
+
+    wire clear_en = clear & ~run_en;
 
     always @(posedge clk, posedge reset) begin
         if (reset) begin
@@ -87,7 +89,7 @@ module stopwatch_datapath (
         .clk(clk),
         .reset(reset),
         .mode(count_mode_sw),
-        .clear(clear),
+        .clear(clear_en),
         .run_stop(run_en),
         .i_tick(w_hour_tick),
         .o_count(hour),
@@ -102,7 +104,7 @@ module stopwatch_datapath (
         .clk(clk),
         .reset(reset),
         .mode(count_mode_sw),
-        .clear(clear),
+        .clear(clear_en),
         .run_stop(run_en),
         .i_tick(w_min_tick),
         .o_count(min),
@@ -117,7 +119,7 @@ module stopwatch_datapath (
         .clk(clk),
         .reset(reset),
         .mode(count_mode_sw),
-        .clear(clear),
+        .clear(clear_en),
         .run_stop(run_en),
         .i_tick(w_sec_tick),
         .o_count(sec),
@@ -133,7 +135,7 @@ module stopwatch_datapath (
         .reset(reset),
         .i_tick(w_tick_100hz),
         .mode(count_mode_sw),
-        .clear(clear),
+        .clear(clear_en),
         .run_stop(run_en),
         .o_count(msec),
         .o_tick(w_sec_tick)
@@ -162,7 +164,7 @@ module tick_counter #(
     assign o_count = counter_reg;
 
     always @(posedge clk, posedge reset) begin
-        if (reset | clear) begin
+        if (reset | (clear && !run_stop)) begin // clear & run_stop 동시 입력시 clear 무시
             counter_reg <= 0;
         end else begin
             counter_reg <= counter_next;
@@ -213,11 +215,13 @@ module clk_datapath (
     output [4:0] c_hour
 );
     wire tick_100hz;
+    wire en_tick = !(sw_time_set);
+    wire sec_tick, min_tick, hour_tick;
 
     tick_gen_100hz U_tick_gen (
         .clk(clk),
         .reset(reset),
-        .i_run_stop(1'b1),
+        .i_run_stop(~sw_time_set),
         .o_tick_100hz(tick_100hz)
     );
 
@@ -230,9 +234,6 @@ module clk_datapath (
         .btn_next(btn_next),
         .sel(sel)
     );
-
-    wire en_tick = !(sw_time_set);
-    wire sec_tick, min_tick, hour_tick;
 
 
     wire [6:0] msec;
