@@ -15,15 +15,13 @@ module stopwatch_clock (
     output [23:0] clock_time
 );
 
-    wire o_btn_runstop, o_btn_clear, o_btn_up, o_btn_down, o_btn_next;
-
     clk_datapath U_CLOCK_DATAPATH (
         .clk        (clk),
         .reset      (reset),
         .sw_time_set(sw_time_set),
-        .btn_next   (o_btn_next),
-        .up_count   (o_btn_up),
-        .down_count (o_btn_down),
+        .btn_next   (btn_next),
+        .up_count   (btn_up),
+        .down_count (btn_down),
         .c_msec     (clock_time[6:0]),
         .c_sec      (clock_time[12:7]),
         .c_min      (clock_time[18:13]),
@@ -35,52 +33,12 @@ module stopwatch_clock (
         .clk          (clk),
         .reset        (reset),
         .count_mode_sw(cnt_mode),
-        .clear        (o_btn_clear),
-        .run_stop     (o_btn_runstop),
+        .clear        (btn_clear),
+        .run_stop     (btn_run_stop),
         .msec         (stopwatch_time[6:0]),
         .sec          (stopwatch_time[12:7]),
         .min          (stopwatch_time[18:13]),
         .hour         (stopwatch_time[25:19])
-    );
-
-
-    btn_edge_pulse U_BTN_RUNSTOP_UNLOCK (
-        .clk(clk),
-        .reset(reset),
-        .i_btn(btn_run_stop),
-        .o_pulse(o_btn_runstop)
-    );
-
-
-    btn_edge_pulse U_BTN_CLEAR_UNLOCK (
-        .clk(clk),
-        .reset(reset),
-        .i_btn(btn_clear),
-        .o_pulse(o_btn_clear)
-    );
-
-
-    btn_edge_pulse U_BTN_UP_UNLOCK (
-        .clk(clk),
-        .reset(reset),
-        .i_btn(btn_up),
-        .o_pulse(o_btn_up)
-    );
-
-
-    btn_edge_pulse U_BTN_DOWN_UNLOCK (
-        .clk(clk),
-        .reset(reset),
-        .i_btn(btn_down),
-        .o_pulse(o_btn_down)
-    );
-
-
-    btn_edge_pulse U_BTN_NEXT_UNLOCK (
-        .clk(clk),
-        .reset(reset),
-        .i_btn(btn_next),
-        .o_pulse(o_btn_next)
     );
 
 endmodule
@@ -459,42 +417,3 @@ module tick_gen_100hz (
     end
 endmodule
 
-
-module btn_edge_pulse (
-    input      clk,
-    input      reset,
-    input      i_btn,
-    output reg o_pulse
-);
-
-    parameter LOCK20MS = 2_000_000;
-
-    reg  [$clog2(LOCK20MS)-1:0] lock_cnt;
- 
-    // sync + edge detect
-    reg btn_q, btn_q_d;
-    wire btn_rise = btn_q & ~btn_q_d;
-
-    always @(posedge clk or posedge reset) begin
-        if (reset) begin
-            btn_q     <= 1'b0;
-            btn_q_d   <= 1'b0;
-            lock_cnt  <= 0;
-            o_pulse   <= 1'b0;
-        end else begin
-            // sample input (synchronous)
-            btn_q   <= i_btn;
-            btn_q_d <= btn_q;
-
-            o_pulse <= 1'b0;
-
-            if (lock_cnt != 0)
-                lock_cnt <= lock_cnt - 1'b1;
-
-            if (btn_rise && (lock_cnt == 0)) begin
-                o_pulse  <= 1'b1;           // 1clk pulse
-                lock_cnt <= LOCK20MS - 1;   // start cooldown
-            end
-        end
-    end
-endmodule
