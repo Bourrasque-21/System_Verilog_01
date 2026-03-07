@@ -12,9 +12,7 @@ module stopwatch_clock (
     input btn_next,
 
     output [25:0] stopwatch_time,
-    output [23:0] clock_time,
-    output mon_clk_tick_100hz,
-    output mon_sw_tick_100hz
+    output [23:0] clock_time
 );
 
     clk_datapath U_CLOCK_DATAPATH (
@@ -27,8 +25,7 @@ module stopwatch_clock (
         .c_msec     (clock_time[6:0]),
         .c_sec      (clock_time[12:7]),
         .c_min      (clock_time[18:13]),
-        .c_hour     (clock_time[23:19]),
-        .tick_100hz_mon(mon_clk_tick_100hz)
+        .c_hour     (clock_time[23:19])
     );
 
 
@@ -41,8 +38,7 @@ module stopwatch_clock (
         .msec         (stopwatch_time[6:0]),
         .sec          (stopwatch_time[12:7]),
         .min          (stopwatch_time[18:13]),
-        .hour         (stopwatch_time[25:19]),
-        .tick_100hz_mon(mon_sw_tick_100hz)
+        .hour         (stopwatch_time[25:19])
     );
 
 endmodule
@@ -60,8 +56,7 @@ module stopwatch_datapath (
     output [6:0] msec,
     output [5:0] sec,
     output [5:0] min,
-    output [6:0] hour,
-    output tick_100hz_mon
+    output [6:0] hour
 );
     
     wire w_tick_100hz, w_sec_tick, w_min_tick, w_hour_tick;
@@ -147,8 +142,6 @@ module stopwatch_datapath (
         .o_tick(w_sec_tick)
     );
 
-    assign tick_100hz_mon = w_tick_100hz;
-
 endmodule
 
 
@@ -218,8 +211,7 @@ module clk_datapath (
     output [6:0] c_msec,
     output [5:0] c_sec,
     output [5:0] c_min,
-    output [4:0] c_hour,
-    output tick_100hz_mon
+    output [4:0] c_hour
 );
     wire tick_100hz;
     wire en_tick = !(sw_time_set);
@@ -318,7 +310,6 @@ module clk_datapath (
     assign c_sec  = sec;
     assign c_min  = min;
     assign c_hour = hour;
-    assign tick_100hz_mon = tick_100hz;
 
 endmodule
 
