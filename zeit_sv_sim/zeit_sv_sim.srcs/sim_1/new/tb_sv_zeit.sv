@@ -40,24 +40,24 @@ class transaction;
     constraint c_btn_by_mode {
         if (sw_time_set) {
             btn_run_stop dist {
-                1 := 7,
-                0 := 93
+                1 := 10,
+                0 := 90
             };
             btn_clear dist {
-                1 := 2,
-                0 := 98
+                1 := 10,
+                0 := 90
             };
             btn_up dist {
-                1 := 10,
-                0 := 90
+                1 := 20,
+                0 := 80
             };
             btn_down dist {
-                1 := 10,
-                0 := 90
+                1 := 20,
+                0 := 80
             };
             btn_next dist {
-                1 := 12,
-                0 := 88
+                1 := 30,
+                0 := 70
             };
         } else {
             btn_run_stop dist {
@@ -69,16 +69,16 @@ class transaction;
                 0 := 95
             };
             btn_up dist {
-                1 := 10,
-                0 := 90
+                1 := 7,
+                0 := 93
             };
             btn_down dist {
-                1 := 10,
-                0 := 90
+                1 := 7,
+                0 := 93
             };
             btn_next dist {
-                1 := 10,
-                0 := 90
+                1 := 5,
+                0 := 95
             };
         }
     }
@@ -101,7 +101,7 @@ class generator;
     function new(mailbox#(transaction) gen2drv_mbox);
         this.gen2drv_mbox = gen2drv_mbox;
         cur_cnt_mode      = 0;
-        cur_sw_time_set   = 0;
+        cur_sw_time_set   = 1;
         btn_gap_min_ms    = 20;
         btn_gap_max_ms    = 50;
         cnt_gap_min_ms    = 100;
@@ -324,6 +324,16 @@ class scoreboard;
     int                           btn_next_cnt;
     int                           cnt_mode_toggle_cnt;
     int                           sw_time_set_toggle_cnt;
+    int                           run_scenario_cnt;
+    int                           stop_scenario_cnt;
+    int                           clear_scenario_cnt;
+    int                           timeset_scenario_cnt;
+    int                           rollover_scenario_cnt;
+    bit                           scenario_run_hit;
+    bit                           scenario_stop_hit;
+    bit                           scenario_clear_hit;
+    bit                           scenario_timeset_hit;
+    bit                           scenario_rollover_hit;
 
     covergroup cg_inputs;
         option.per_instance = 1;
@@ -337,6 +347,15 @@ class scoreboard;
             bins low = {0}; bins high = {1};
         }
         x_mode_tset: cross cp_cnt_mode, cp_sw_time_set;
+    endgroup
+
+    covergroup cg_scenarios;
+        option.per_instance = 1;
+        cp_run: coverpoint scenario_run_hit {bins hit = {1};}
+        cp_stop: coverpoint scenario_stop_hit {bins hit = {1};}
+        cp_clear: coverpoint scenario_clear_hit {bins hit = {1};}
+        cp_timeset: coverpoint scenario_timeset_hit {bins hit = {1};}
+        cp_rollover: coverpoint scenario_rollover_hit {bins hit = {1};}
     endgroup
 
     function new(mailbox#(transaction) mon2scb_mbox);
@@ -360,7 +379,18 @@ class scoreboard;
         this.btn_next_cnt           = 0;
         this.cnt_mode_toggle_cnt    = 0;
         this.sw_time_set_toggle_cnt = 0;
+        this.run_scenario_cnt       = 0;
+        this.stop_scenario_cnt      = 0;
+        this.clear_scenario_cnt     = 0;
+        this.timeset_scenario_cnt   = 0;
+        this.rollover_scenario_cnt  = 0;
+        this.scenario_run_hit       = 0;
+        this.scenario_stop_hit      = 0;
+        this.scenario_clear_hit     = 0;
+        this.scenario_timeset_hit   = 0;
+        this.scenario_rollover_hit  = 0;
         this.cg_inputs              = new;
+        this.cg_scenarios           = new;
     endfunction
 
     task run();
@@ -377,6 +407,11 @@ class scoreboard;
         bit evt_clk_btn;
         bit sw_tick_evt;
         bit clk_tick_evt;
+        bit run_scenario_evt;
+        bit stop_scenario_evt;
+        bit clear_scenario_evt;
+        bit timeset_scenario_evt;
+        bit rollover_scenario_evt;
         logic [25:0] sw_log_ref;
         logic [23:0] clk_log_ref;
 
@@ -400,6 +435,15 @@ class scoreboard;
             sw_tick_evt = tr.mon_sw_tick_evt;
             clk_tick_evt = tr.mon_clk_tick_evt;
             clear_valid = tr.btn_clear && !tr.btn_run_stop && !ref_running;
+            run_scenario_evt = rs_rise && !ref_running;
+            stop_scenario_evt = rs_rise && ref_running;
+            clear_scenario_evt = clear_valid;
+            timeset_scenario_evt = evt_clk_btn;
+            rollover_scenario_evt =
+                ((sw_tick_evt && ref_running) &&
+                 will_sw_rollover(ref_stopwatch_time, tr.cnt_mode)) ||
+                ((clk_tick_evt && !tr.sw_time_set) &&
+                 will_clk_rollover(ref_clock_time));
 
             if (tr.btn_run_stop) btn_run_stop_cnt++;
             if (tr.btn_clear) btn_clear_cnt++;
@@ -408,7 +452,21 @@ class scoreboard;
             if (tr.btn_next) btn_next_cnt++;
             if (tr.cnt_mode != prev_cnt_mode) cnt_mode_toggle_cnt++;
             if (tr.sw_time_set != prev_sw_time_set) sw_time_set_toggle_cnt++;
+            if (run_scenario_evt) run_scenario_cnt++;
+            if (stop_scenario_evt) stop_scenario_cnt++;
+            if (clear_scenario_evt) clear_scenario_cnt++;
+            if (timeset_scenario_evt) timeset_scenario_cnt++;
+            if (rollover_scenario_evt) rollover_scenario_cnt++;
+            scenario_run_hit = run_scenario_evt;
+            scenario_stop_hit = stop_scenario_evt;
+            scenario_clear_hit = clear_scenario_evt;
+            scenario_timeset_hit = timeset_scenario_evt;
+            scenario_rollover_hit = rollover_scenario_evt;
             if (tr.mon_btn_evt || tr.mon_sw_evt) cg_inputs.sample();
+            if (run_scenario_evt || stop_scenario_evt || clear_scenario_evt ||
+                timeset_scenario_evt || rollover_scenario_evt) begin
+                cg_scenarios.sample();
+            end
 
             exp_sw = ref_stopwatch_time;
             exp_clk = ref_clock_time;
@@ -540,6 +598,13 @@ class scoreboard;
         sw_ref = {hour, min, sec, msec};
     endtask
 
+    function bit will_sw_rollover(input logic [25:0] sw_ref, input bit mode);
+        if (mode) begin
+            return 1'b0;
+        end
+        return (sw_ref == {7'd99, 6'd59, 6'd59, 7'd99});
+    endfunction
+
     task ref_clock_tick(inout logic [23:0] clk_ref);
         logic [6:0] msec;
         logic [5:0] sec, min;
@@ -564,6 +629,10 @@ class scoreboard;
 
         clk_ref = {hour, min, sec, msec};
     endtask
+
+    function bit will_clk_rollover(input logic [23:0] clk_ref);
+        return (clk_ref == {5'd23, 6'd59, 6'd59, 7'd99});
+    endfunction
 
     task ref_clock_set_step(inout logic [23:0] clk_ref, input bit up,
                             input bit down);
@@ -596,6 +665,8 @@ class scoreboard;
     endtask
 
     task report_summary();
+        int miss_scn_cnt;
+        miss_scn_cnt = 0;
         $display("========== SUMMARY ==========");
         $display("STOPWATCH: PASS=%0d  FAIL=%0d", sw_pass_cnt, sw_fail_cnt);
         $display("CLOCK    : PASS=%0d  FAIL=%0d", clk_pass_cnt, clk_fail_cnt);
@@ -605,7 +676,32 @@ class scoreboard;
             btn_next_cnt);
         $display("SW TOGGLE: cnt_mode=%0d  sw_time_set=%0d",
                  cnt_mode_toggle_cnt, sw_time_set_toggle_cnt);
-        $display("COVERAGE : %0.2f%%", cg_inputs.get_coverage());
+        $display(
+            "SCENARIO  : run=%0d stop=%0d clear=%0d timeset=%0d rollover=%0d",
+            run_scenario_cnt, stop_scenario_cnt, clear_scenario_cnt,
+            timeset_scenario_cnt, rollover_scenario_cnt);
+        if (run_scenario_cnt == 0) begin
+            $display("SCENARIO MISS: Run scenario");
+            miss_scn_cnt++;
+        end
+        if (stop_scenario_cnt == 0) begin
+            $display("SCENARIO MISS: Stop scenario");
+            miss_scn_cnt++;
+        end
+        if (clear_scenario_cnt == 0) begin
+            $display("SCENARIO MISS: Clear scenario");
+            miss_scn_cnt++;
+        end
+        if (timeset_scenario_cnt == 0) begin
+            $display("SCENARIO MISS: Time-set scenario");
+            miss_scn_cnt++;
+        end
+        if (rollover_scenario_cnt == 0) begin
+            $display("SCENARIO MISS: Counter rollover");
+            miss_scn_cnt++;
+        end
+        $display("BTN COVERAGE : %0.2f%%", cg_inputs.get_coverage());
+        $display("SCN COVERAGE : %0.2f%%", cg_scenarios.get_coverage());
     endtask
 
 
@@ -648,27 +744,28 @@ module tb_sv_zeit ();
     environment env;
 
     stopwatch_clock dut (
-        .clk               (stopwatch_if.clk),
-        .reset             (stopwatch_if.reset),
-        .cnt_mode          (stopwatch_if.cnt_mode),
-        .sw_time_set       (stopwatch_if.sw_time_set),
-        .btn_run_stop      (stopwatch_if.btn_run_stop),
-        .btn_clear         (stopwatch_if.btn_clear),
-        .btn_up            (stopwatch_if.btn_up),
-        .btn_down          (stopwatch_if.btn_down),
-        .btn_next          (stopwatch_if.btn_next),
-        .stopwatch_time    (stopwatch_if.stopwatch_time),
-        .clock_time        (stopwatch_if.clock_time),
-        .mon_clk_tick_100hz(stopwatch_if.mon_clk_tick_100hz),
-        .mon_sw_tick_100hz (stopwatch_if.mon_sw_tick_100hz)
+        .clk           (stopwatch_if.clk),
+        .reset         (stopwatch_if.reset),
+        .cnt_mode      (stopwatch_if.cnt_mode),
+        .sw_time_set   (stopwatch_if.sw_time_set),
+        .btn_run_stop  (stopwatch_if.btn_run_stop),
+        .btn_clear     (stopwatch_if.btn_clear),
+        .btn_up        (stopwatch_if.btn_up),
+        .btn_down      (stopwatch_if.btn_down),
+        .btn_next      (stopwatch_if.btn_next),
+        .stopwatch_time(stopwatch_if.stopwatch_time),
+        .clock_time    (stopwatch_if.clock_time)
     );
+
+    assign stopwatch_if.mon_clk_tick_100hz = dut.U_CLOCK_DATAPATH.tick_100hz;
+    assign stopwatch_if.mon_sw_tick_100hz  = dut.U_STOPWATCH_DATAPATH.w_tick_100hz;
 
     always #5 clk = ~clk;
 
     initial begin
         clk = 0;
         env = new(stopwatch_if);
-        env.run(100);
+        env.run(200);
         env.scb.report_summary();
 
         #100;
